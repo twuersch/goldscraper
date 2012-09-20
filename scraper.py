@@ -14,6 +14,7 @@ import sched
 from scrapy import signals
 from scrapy.xlib.pydispatch import dispatcher
 from scrapy.conf import settings
+import random
 
 # Some settings.
 OUTPUT_FILE = "/Users/timo/Documents/aptana-studio-3-workspace/scraper/output.csv"
@@ -37,13 +38,13 @@ def make_infinite_daily_schedule(schedule):
         else:
             i = i + 1
 
-def execute_daily(schedule, function):
+def execute_daily_randomized(schedule, function):
     """
     Executes the given function each day, at the times specified in the
-    schedule.
+    schedule, including a randomized offset.
     """
     scheduler = sched.scheduler(time_time, sleep)
-    for nextrun in make_infinite_daily_schedule(schedule):
+    for nextrun in (t + timedelta(seconds = 3600 * random.uniform(-1.0, 1.0)) for t in make_infinite_daily_schedule(schedule)):
         if nextrun >= datetime.now():
             print("Next run scheduled at " + nextrun.isoformat(" "))
             scheduler.enterabs(mktime(nextrun.timetuple()), 1, function, [])
@@ -87,4 +88,4 @@ def scrape():
     crawler.start()
     
 if __name__ == "__main__":
-    execute_daily(SCHEDULE, scrape)
+    execute_daily_randomized(SCHEDULE, scrape)
