@@ -6,15 +6,11 @@ Created on Aug 8, 2012
 
 from time import mktime, time as time_time, sleep
 from datetime import time, datetime, date, timedelta
-from scrapy.item import Item, Field
-from scrapy.spider import BaseSpider
-from scrapy.selector import HtmlXPathSelector
-from scrapy.crawler import CrawlerProcess
 import sched
-from scrapy import signals
-from scrapy.xlib.pydispatch import dispatcher
-from scrapy.conf import settings
 import random
+import requests
+from StringIO import StringIO
+from lxml import etree
 
 # Some settings.
 OUTPUT_FILE = "/Users/timo/Documents/aptana-studio-3-workspace/scraper/output.csv"
@@ -44,48 +40,27 @@ def execute_daily_randomized(schedule, function):
     schedule, including a randomized offset.
     """
     scheduler = sched.scheduler(time_time, sleep)
-    for nextrun in (t + timedelta(seconds = 3600 * random.uniform(-1.0, 1.0)) for t in make_infinite_daily_schedule(schedule)):
+    for nextrun in (t + timedelta(seconds = 0 * random.uniform(-1.0, 1.0)) for t in make_infinite_daily_schedule(schedule)):
         if nextrun >= datetime.now():
             print("Next run scheduled at " + nextrun.isoformat(" "))
             scheduler.enterabs(mktime(nextrun.timetuple()), 1, function, [])
             scheduler.run()
-
-class GoldPriceItem(Item):
-    """
-    Item to hold the gold price.
-    """
-    price = Field()
-
-class GoldPriceSpider(BaseSpider):
-    """
-    Spider for scraping web data.
-    """
-    name = "gold_price_spider"
-    allowed_domains = ["stocks.migrosbank.ch"]
-    start_urls = ["https://stocks.migrosbank.ch/www/market/rohstoffe"]
     
-    def parse(self, response):
-        selector = HtmlXPathSelector(response)
-        gold_price_item = GoldPriceItem()
-        html_elements = selector.select("//a[contains(text(), 'Gold')]/../following-sibling::*[2]/text()")
-        gold_price_item["price"] = float(html_elements[0].extract().strip().replace("'", ""))
-        return gold_price_item
+def get_gold_price():
+    r = requests.get("https://stocks.migrosbank.ch/www/market/rohstoffe", headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_4) AppleWebKit/537.1 (KHTML, like Gecko) Chrome/21.0.1180.89 Safari/537.1"})
+    parser = etree.HTMLParser()
+    tree = etree.parse(StringIO(r.text), parser)
+    elements = tree.xpath("//a[contains(text(), 'Gold')]/../following-sibling::*[2]")
+    gold_price = float(elements[0].text.strip().replace("'", ""))
+    return gold_price
 
-def catch_item(sender, item, **kwargs):
+def write_gold_price_to_file(price):
     f = open(OUTPUT_FILE, "a")
-    f.write(datetime.now().isoformat(" ") + "\t" + str(item["price"]) + "\n")
+    f.write(datetime.now().isoformat(" ") + "\t" + str(price) + "\n")
     f.close()
 
-def scrape():
-    dispatcher.connect(catch_item, signal = signals.item_passed)
-    settings.overrides["LOG_ENABLED"] = False
-    settings.overrides["DEPTH_LIMIT"] = 1
-    settings.overrides["USER_AGENT"] = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_4) AppleWebKit/537.1 (KHTML, like Gecko) Chrome/21.0.1180.89 Safari/537.1"
-    crawler = CrawlerProcess(settings)
-    crawler.install()
-    crawler.configure()
-    crawler.crawl(GoldPriceSpider())
-    crawler.start()
-    
+def scrape_gold_price():
+    write_gold_price_to_file(get_gold_price())
+
 if __name__ == "__main__":
-    execute_daily_randomized(SCHEDULE, scrape)
+    execute_daily_randomized(SCHEDULE, scrape_gold_price)
