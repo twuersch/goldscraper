@@ -45,18 +45,23 @@ def execute_daily(schedule, function, max_rnd_offset = 0, **kwargs):
     
 def scrape_gold_price(kwargs):
     headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_4) AppleWebKit/537.1 (KHTML, like Gecko) Chrome/21.0.1180.89 Safari/537.1"}
-    r = requests.get("https://stocks.migrosbank.ch/www/market/rohstoffe", headers=headers)
-    timestamp = datetime.now()
-    parser = etree.HTMLParser()
-    tree = etree.parse(StringIO(r.text), parser)
-    elements = tree.xpath("//a[contains(text(), 'Gold')]/../following-sibling::*[2]")
-    gold_price = float(elements[0].text.strip().replace("'", ""))
-    print(timestamp.isoformat(" ") + "\t" + str(gold_price))
-    
-    if "filename" in kwargs and kwargs["filename"] is not None:
-        f = open(kwargs["filename"], "a")
-        f.write(timestamp.isoformat(" ") + "\t" + str(gold_price) + "\n")
-        f.close()
+    try:
+        r = requests.get("https://stocks.migrosbank.ch/www/market/rohstoffe", headers=headers)
+        if r.status_code != 200:
+            raise Exception("Got HTTP status code " + str(r.status_code))
+        timestamp = datetime.now()
+        parser = etree.HTMLParser()
+        tree = etree.parse(StringIO(r.text), parser)
+        elements = tree.xpath("//a[contains(text(), 'Gold')]/../following-sibling::*[2]")
+        gold_price = float(elements[0].text.strip().replace("'", ""))
+        print(timestamp.isoformat(" ") + "\t" + str(gold_price))
+        
+        if "filename" in kwargs and kwargs["filename"] is not None:
+            f = open(kwargs["filename"], "a")
+            f.write(timestamp.isoformat(" ") + "\t" + str(gold_price) + "\n")
+            f.close()
+    except Exception as exception:
+        print("Exception at " + timestamp.isoformat(" ") + ": " + str(exception))
 
 if __name__ == "__main__":
     usage = "Usage: scraper [options]"
