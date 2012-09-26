@@ -5,16 +5,13 @@ Created on Aug 8, 2012
 '''
 
 from time import mktime, time as time_time, sleep
-from datetime import time, datetime, date, timedelta
+from datetime import datetime, date, timedelta
 import sched
 import random
 import requests
 from StringIO import StringIO
 from lxml import etree
-
-# Some settings.
-OUTPUT_FILE = "/Users/timo/Documents/aptana-studio-3-workspace/scraper/output.csv"
-SCHEDULE = [time(hour = 7), time(hour = 13), time(hour = 19), time(hour = 1)]
+from optparse import OptionParser
 
 def make_infinite_daily_schedule(schedule):
     """
@@ -34,33 +31,47 @@ def make_infinite_daily_schedule(schedule):
         else:
             i = i + 1
 
-def execute_daily_randomized(schedule, function):
+def execute_daily(schedule, function, max_rnd_offset = 0, **kwargs):
     """
     Executes the given function each day, at the times specified in the
     schedule, including a randomized offset.
     """
     scheduler = sched.scheduler(time_time, sleep)
-    for nextrun in (t + timedelta(seconds = 0 * random.uniform(-1.0, 1.0)) for t in make_infinite_daily_schedule(schedule)):
+    for nextrun in (t + timedelta(seconds = max_rnd_offset * random.uniform(-1.0, 1.0)) for t in make_infinite_daily_schedule(schedule)):
         if nextrun >= datetime.now():
             print("Next run scheduled at " + nextrun.isoformat(" "))
-            scheduler.enterabs(mktime(nextrun.timetuple()), 1, function, [])
+            scheduler.enterabs(mktime(nextrun.timetuple()), 1, function, [kwargs])
             scheduler.run()
     
-def get_gold_price():
-    r = requests.get("https://stocks.migrosbank.ch/www/market/rohstoffe", headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_4) AppleWebKit/537.1 (KHTML, like Gecko) Chrome/21.0.1180.89 Safari/537.1"})
+def scrape_gold_price(kwargs):
+    headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_4) AppleWebKit/537.1 (KHTML, like Gecko) Chrome/21.0.1180.89 Safari/537.1"}
+    r = requests.get("https://stocks.migrosbank.ch/www/market/rohstoffe", headers=headers)
+    timestamp = datetime.now()
     parser = etree.HTMLParser()
     tree = etree.parse(StringIO(r.text), parser)
     elements = tree.xpath("//a[contains(text(), 'Gold')]/../following-sibling::*[2]")
     gold_price = float(elements[0].text.strip().replace("'", ""))
-    return gold_price
-
-def write_gold_price_to_file(price):
-    f = open(OUTPUT_FILE, "a")
-    f.write(datetime.now().isoformat(" ") + "\t" + str(price) + "\n")
-    f.close()
-
-def scrape_gold_price():
-    write_gold_price_to_file(get_gold_price())
+    print(timestamp.isoformat(" ") + "\t" + str(gold_price))
+    
+    if "filename" in kwargs and kwargs["filename"] is not None:
+        f = open(kwargs["filename"], "a")
+        f.write(timestamp.isoformat(" ") + "\t" + str(gold_price) + "\n")
+        f.close()
 
 if __name__ == "__main__":
-    execute_daily_randomized(SCHEDULE, scrape_gold_price)
+    usage = "Usage: scraper [options]"
+    option_parser = OptionParser(usage = usage)
+    option_parser.add_option("-o", "--output", dest="filename", help="Appends values to FILE. If omitted, writes to stdout only.", metavar="FILE")
+    option_parser.add_option("-s", "--schedule", dest="schedule", help="Specify the daily schedule as a list of Python time objects, e.g. \"[time(hour = 7), time(hour = 13)]\". If omitted, execute only once.")
+    option_parser.add_option("-r", "--max-rnd-offset", dest="max_rnd_offset", help="Randomizes the schedule by a maximum of SECONDS. Defaults to 0.", metavar="SECONDS")
+    options, args = option_parser.parse_args()
+
+    max_rnd_offset = int(options.max_rnd_offset) if options.max_rnd_offset else 0
+    filename = options.filename
+    if options.schedule:
+        # This import is requred for the eval() on the following line
+        from datetime import time
+        schedule = eval(options.schedule)
+        execute_daily(schedule, scrape_gold_price, max_rnd_offset=max_rnd_offset, filename=filename)
+    else:
+        scrape_gold_price(filename)
