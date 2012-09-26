@@ -45,11 +45,11 @@ def execute_daily(schedule, function, max_rnd_offset = 0, **kwargs):
     
 def scrape_gold_price(kwargs):
     headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_4) AppleWebKit/537.1 (KHTML, like Gecko) Chrome/21.0.1180.89 Safari/537.1"}
+    timestamp = datetime.now()
     try:
         r = requests.get("https://stocks.migrosbank.ch/www/market/rohstoffe", headers=headers)
         if r.status_code != 200:
             raise Exception("Got HTTP status code " + str(r.status_code))
-        timestamp = datetime.now()
         parser = etree.HTMLParser()
         tree = etree.parse(StringIO(r.text), parser)
         elements = tree.xpath("//a[contains(text(), 'Gold')]/../following-sibling::*[2]")
