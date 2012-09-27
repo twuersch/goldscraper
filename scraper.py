@@ -12,6 +12,8 @@ import requests
 from StringIO import StringIO
 from lxml import etree
 from optparse import OptionParser
+import traceback
+import sys
 
 def make_infinite_daily_schedule(schedule):
     """
@@ -56,12 +58,13 @@ def scrape_gold_price(kwargs):
         gold_price = float(elements[0].text.strip().replace("'", ""))
         print(timestamp.isoformat(" ") + "\t" + str(gold_price))
         
-        if "filename" in kwargs and kwargs["filename"] is not None:
+        if kwargs is not None and "filename" in kwargs and kwargs["filename"] is not None:
             f = open(kwargs["filename"], "a")
             f.write(timestamp.isoformat(" ") + "\t" + str(gold_price) + "\n")
             f.close()
     except Exception as exception:
         print("Exception at " + timestamp.isoformat(" ") + ": " + str(exception))
+        traceback.print_exc(file=sys.stdout)
 
 if __name__ == "__main__":
     usage = "Usage: scraper [options]"
