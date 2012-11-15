@@ -79,7 +79,11 @@ if __name__ == "__main__":
     if options.schedule:
         # This import is requred for the eval() on the following line
         from datetime import time
-        schedule = eval(options.schedule)
-        execute_daily(schedule, scrape_gold_price, max_rnd_offset=max_rnd_offset, filename=filename)
+        schedule = eval(options.schedule, {"time": time})
+        if isinstance(schedule, list) and all(map(lambda t: isinstance(t, time), schedule)):
+            execute_daily(schedule, scrape_gold_price, max_rnd_offset=max_rnd_offset, filename=filename)
+        else:
+            print("The schedule must be a list of time objects, e.g. \"[time(hour = 7), time(hour = 13)]\"")
+            sys.exit(1)
     else:
-        scrape_gold_price(filename)
+        scrape_gold_price({"filename": filename})
