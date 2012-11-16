@@ -58,10 +58,15 @@ def scrape_gold_price(kwargs):
         gold_price = float(elements[0].text.strip().replace("'", ""))
         print(timestamp.isoformat(" ") + "\t" + str(gold_price))
         
-        if kwargs is not None and "filename" in kwargs and kwargs["filename"] is not None:
+        if kwargs.get("filename", None):
             f = open(kwargs["filename"], "a")
             f.write(timestamp.isoformat(" ") + "\t" + str(gold_price) + "\n")
             f.close()
+        
+        if kwargs.get("db", None):
+            import pymongo
+            pymongo.Connection().scraper.gold_prices.insert({"gold_price": gold_price, "timestamp": timestamp})
+        
     except Exception as exception:
         print("Exception at " + timestamp.isoformat(" ") + ": " + str(exception))
         traceback.print_exc(file=sys.stdout)
@@ -72,6 +77,7 @@ if __name__ == "__main__":
     option_parser.add_option("-o", "--output", dest="filename", help="Appends values to FILE. If omitted, writes to stdout only.", metavar="FILE")
     option_parser.add_option("-s", "--schedule", dest="schedule", help="Specify the daily schedule as a list of Python time objects, e.g. \"[time(hour = 7), time(hour = 13)]\". If omitted, execute only once.")
     option_parser.add_option("-r", "--max-rnd-offset", dest="max_rnd_offset", help="Randomizes the schedule by a maximum of SECONDS. Defaults to 0.", metavar="SECONDS")
+    option_parser.add_option("-d", "--db", dest="db", help="Appends values to the \"scraper\" collection of a local MongoDB instance.", action="store_true")
     options, args = option_parser.parse_args()
 
     max_rnd_offset = int(options.max_rnd_offset) if options.max_rnd_offset else 0
@@ -81,9 +87,9 @@ if __name__ == "__main__":
         from datetime import time
         schedule = eval(options.schedule, {"time": time})
         if isinstance(schedule, list) and all(map(lambda t: isinstance(t, time), schedule)):
-            execute_daily(schedule, scrape_gold_price, max_rnd_offset=max_rnd_offset, filename=filename)
+            execute_daily(schedule, scrape_gold_price, max_rnd_offset=max_rnd_offset, filename=filename, db=options.db)
         else:
             print("The schedule must be a list of time objects, e.g. \"[time(hour = 7), time(hour = 13)]\"")
             sys.exit(1)
     else:
-        scrape_gold_price({"filename": filename})
+        scrape_gold_price({"filename": filename, "db": options.db})
